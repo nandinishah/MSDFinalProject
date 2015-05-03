@@ -16,34 +16,73 @@ theme_set(theme_bw())
 
 
 # read as csv: keep headers and include empty strings as NA
-data <- read.csv('2ns_gtd_06_to_13.csv',header=T, stringsAsFactor = F, na.strings ="")
-# datafull <- read.csv('gtd_06_to_13.csv')
+#data <- read.csv('2ns_gtd_06_to_13.csv',header=T, stringsAsFactor = F, na.strings ="")
+datafull <- read.csv('gtd_06_to_13.csv', header=T, stringsAsFactor = F, na.strings ="")
 
-n <- nrow(data)
-data.cols <- names(data)
-# vector for columns to remove - have less than 1/2 the total number of rows
-cols.exclude <- c()
+# n <- nrow(datafull)
+#data.cols <- names(datafull)
+
+######### filter data for top 6 countries ###########
+data.top6 <- filter(datafull, country_txt=="Iraq" | country_txt=="Pakistan" | country_txt=="Afghanistan" | 
+                      country_txt=="India" | country_txt=="Philippines" | country_txt=="United States")
+
+
+######### cleaning columns ###########
 
 # loop through columns and add to cols.exclude any column with less than n/2 rows
 # where n/2 is total number of rows in a complete column
-for (i in 1:length(data.cols) ){
-  empty.rows <- sum(is.na(data[[data.cols[i]]]))
-  if(n - empty.rows < n/2){
-    cols.exclude <- rbind(cols.exclude, data.cols[i])
+# cols.exclude = vector for columns to remove - have less than 1/2 the total number of rows
+reduce_cols <- function(dat){
+  cols.exclude <- c()
+  data.cols <- names(dat)
+  n <- nrow(dat)
+  for (i in 1:length(data.cols) ){
+    empty.rows <- sum(is.na(dat[[data.cols[i]]]))
+    if(n - empty.rows < n/2){
+      cols.exclude <- rbind(cols.exclude, data.cols[i])
+    }
   }
+  return(cols.exclude)
 }
-# reduce data based on whether there are more than n/2 rows in column
-data.small <- data[, !(data.cols %in% (cols.exclude))]
 
-# columns with text or other info that may not be needed
-text.cols <- c("eventid","location","summary", "motive","provstate","city",
-               "latitude","longitude","specificity","target1","targsubtype1")
-# remove additional columns w text - have numerical values
+# columns to be removed -  based on where there are less than n/2 rows
+cols.remove = reduce_cols(data.top6)
+
+# columns names in data
+data.columns <- names(data.top6)
+
+# reduce data based on whether there are more than n/2 rows in column
+data.small <- data.top6[, !(data.columns %in% (cols.remove))]
+
+# remove any columns with "_txt" - have numerical values already
 txt.cols.remove <- names(select(.data = data.small, contains("_txt")))
 
-# remove text columns
-data.small <- data.small[, !(names(data.small) %in% text.cols)]
+# remove "_txt" columns
 data.small <- data.small[, !(names(data.small) %in% txt.cols.remove)]
+
+# columns with text or other info that may not be needed
+other.cols <- c("eventid", "provstate", "city","latitude","longitude","specificity",
+               "location","summary","targsubtype1","motive","weapdetail","propcomment","scite1","scite2",
+               "dbsource")
+# remove other columns with text or other information thats not needed
+data.small <- data.small[, !(names(data.small) %in% other.cols)]
+
+# last 4 columns contain internation info - check that there is sufficient data filled
+# -9 = unknown - check that there are at least n/2 knowns in these columns
+internat.cols <- names(select(.data = data.small, contains("INT_")))
+n.rows <- nrow(data.small)
+int.exclude <- c()
+for (i in 1:length(internat.cols) ){
+   unknown.rows <- sum(data.small[,internat.cols[i]]==-9)
+   if(n.rows - unknown.rows < n.rows/2){
+     int.exclude <- rbind(int.exclude, internat.cols[i])
+   }
+}
+
+# remove international columns with too many unknowns (-9) rows
+data.small <- data.small[, !(names(data.small) %in% int.exclude)]
+
+######### vectorizing text columns ###########
 
 # vectorize corp column from character
 corp <- data.small$corp1
@@ -63,17 +102,27 @@ gname.index <- match(gname, unique.gname)
 # add to data.small
 data.small$gname.index <- gname.index
 
-# remove gname and corp columns (bc of characters) 
-data.small <- data.small[,!(names(data.small) %in% c("corp1","gname"))]
+# vectorize target1 column 
+target1 <- data.small$target1
+# unique names
+unique.target1 <- unique(data.small$target1)
+# match index 
+target1.index <- match(target1, unique.target1)
+# add to data.small
+data.small$target1.index <- target1.index
+
+
+# remove gname, target1 and corp columns (bc of characters) 
+data.small <- data.small[,!(names(data.small) %in% c("corp1","gname","target1"))]
 
 # rearrange columns so label is at far right
-data.small <- data.small[,c(1:12,14:20,13)]
+data.small <- data.small[,c(1:12,14:35,13)]
 
 # label - success
 label = data.frame(success = data.small$success, stringsAsFactors = F)
 
 # subset selection
-reg.model <- regsubsets(success ~ ., data = data.small, nvmax = 10)
+reg.model <- regsubsets(success ~ ., data = data.small, nvmax = 20)
 reg.summary <- summary(reg.model)
 
 # point which maximizes adjusted rsquared, Cp and BIC - Best Subset Selection
