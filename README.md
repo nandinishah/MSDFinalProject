@@ -43,9 +43,11 @@ AIC returns the same features, however BIC returns these:
 
 Looks like imonth, extended, multiple, nkillus, nwound are all not returned.
 
-[![bic_subsets](http://nandinishah.github.io/MSDFinalProject/bic_subsets.png)](http://nandinishah.github.io/MSDFinalProject/bic_subsets.png)
-[![cp_subsets](http://nandinishah.github.io/MSDFinalProject/cp_subsets.png)](http://nandinishah.github.io/MSDFinalProject/cp_subsets.png)
-[![adjr2_subsets](http://nandinishah.github.io/MSDFinalProject/adjr2_subsets.png)](http://nandinishah.github.io/MSDFinalProject/adjr2_subsets.png)
+[![bic_subsets](http://Gabya06.github.io/MSDFinalProject/bic_subsets.png)](http://Gabya06.github.io/MSDFinalProject/bic_subsets.png)
+[![cp_subsets](http://Gabya06.github.io/MSDFinalProject/cp_subsets.png)](http://Gabya06.github.io/MSDFinalProject/cp_subsets.png)
+[![adjr2_subsets](http://Gabya06.github.io/MSDFinalProject/adjr2_subsets.png)](http://Gabya06.github.io/MSDFinalProject/adjr2_subsets.png)
+
+
 
 
 
