@@ -135,8 +135,8 @@ nvictim <- data.small$nkill + data.small$nwound
 #   print('nvictim Worked!')
 # }
 data.small$nvictim <- c(log2(nvictim))
-# data.small$nkill <- NULL
-# data.small$nwound <- NULL
+data.small$nkill <- NULL
+data.small$nwound <- NULL
 rm(nvictim)
 
 #@@@ Working with NAs
