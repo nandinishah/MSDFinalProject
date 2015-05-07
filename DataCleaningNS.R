@@ -25,6 +25,7 @@ datafull <- read.csv('gtd_06_to_13.csv', header=T, stringsAsFactor = F, na.strin
 ######### filter data for top 6 countries ###########
 data.top6 <- filter(datafull, country_txt=="Iraq" | country_txt=="Pakistan" | country_txt=="Afghanistan" | 
                       country_txt=="India" | country_txt=="Philippines" | country_txt=="Thailand") #country_txt=="United States")
+rm(datafull)
 #@@@ United States versus Thailand
 
 ######### cleaning columns ###########
@@ -106,6 +107,13 @@ unique.gname <- unique(data.small$gname)
 gname.index <- match(gname, unique.gname)
 # add to data.small
 data.small$gname.index <- gname.index
+# remove gname, target1 and corp columns (bc of characters) 
+#data.small <- data.small[,!(names(data.small) %in% c("corp1","gname","target1"))]
+data.small <- data.small[,!(names(data.small) %in% c("gname"))]
+rm(gname.index)
+rm(gname)
+rm(unique.gname)
+rm(unknown.rows)
 
 #@@@ This might not be a good column to include. Redundant info. If we do use, should normalize it. Removed for now.
 # # vectorize target1 column 
@@ -119,9 +127,17 @@ data.small$gname.index <- gname.index
 
 #@@@ Combining the response variables: nkill + nwound = nvictim
 nvictim <- data.small$nkill + data.small$nwound
-data.small$nvictim <- c(nvictim)
-data.small$nkill <- NULL
-data.small$nwound <- NULL
+# removecols <- c()
+# print("here4 first")
+# column <- which(data.small%in%c("nvictim"))
+# for (j in 1:length(dat[,i])){if (is.na(data.small[j,i]) || is.infinite) {removecols <- rbind(removecols, j) }}
+#   dat <- dat[-c(removecols),]
+#   print('nvictim Worked!')
+# }
+data.small$nvictim <- c(log2(nvictim))
+# data.small$nkill <- NULL
+# data.small$nwound <- NULL
+rm(nvictim)
 
 #@@@ Working with NAs
 cleaningNAs <- function(dat, i){
@@ -140,66 +156,101 @@ cleaningNAs <- function(dat, i){
     dat <- dat[-c(removecols),]
     print('guncertain1 Worked!')
   }
-  
   if (names(dat)[i] == "ishostkid"){
     print("here3")
     for (j in 1:length(dat[,i])){if (is.na(dat[j,i])) {dat <- dat[-c(j),]} }
     print('ishostkid Worked!')
   }
-  
   if (names(dat)[i] == "nvictim"){
     removecols <- c()
     print("here4")
-    for (j in 1:length(dat[,i])){if (is.na(dat[j,i])) {removecols <- rbind(removecols, j)}}
+    for (j in 1:length(dat[,i])){if (is.na(dat[j,i]) || is.infinite(dat[j,i])) {removecols <- rbind(removecols, j) }}
     dat <- dat[-c(removecols),]
     print('nvictim Worked!')
   }
   
-  #@@@ nperps, nperpcap
+  #@@@ weapsubtype1
   if (names(dat)[i] == "weapsubtype1"){
-    form <- as.formula(sprintf('weapsubtype1 ~ weaptype1 + guncertain1 + nvictim + property'))
-    model <- lm(form, data=dat)
-    
+    removecols <- c()
+    print("here5")
+    for (j in 1:length(dat[,i])){if (is.na(dat[j,i])) {removecols <- rbind(removecols, j)}}
+    dat <- dat[-c(removecols),]
+    print('weapsubtype1 Worked!')
     #fit <- lm(y ~ x1 + x2 + x3, data=mydata)
   }
+  #@@@ nperps and nperpcap columns --- ignoring these cols for now. to figure LR.
+  if (names(dat)[i] == "nperps"){
+    removecols <- c()
+    print("here7")
+    for (j in 1:length(dat[,i])){if (is.na(dat[j,i])) {removecols <- rbind(removecols, j)}}
+    dat <- dat[-c(removecols),]
+    i = which(names(dat)%in%c("nperpcap"))
+    for (j in 1:length(dat[,i])){if (is.na(dat[j,i])) {removecols <- rbind(removecols, j)}}
+    dat <- dat[-c(removecols),]
+    print('nperps Worked!')
+  }
+#   #@@@ nperps and nperpcap columns --- ignoring these cols for now. to figure LR.
+#   if (names(dat)[i] == "nperps"){
+#     removecols <- c()
+#     print("here6")
+#     column <- which(names(dat)%in%c("nperps"))
+#     dat[,column] <- NULL
+#     column <- which(names(dat)%in%c("nperpcap"))
+#     dat[,column] <- NULL
+#     print('nperps Worked!')
+#   }
   return(dat)
 }
 
-########## Linear Regression for weapsubtype1 : WIP ########### 
+########## Linear Regression for weapsubtype1 : WIP ################################################################## 
+plot(lowess(x=data.small$weaptype1+data.small$property,y=data.small$weapsubtype1))
+
 fit <- data.frame()
 removecols <- c()
 data.lm <- data.small
 k = which(names(data.lm)%in%c("weapsubtype1"))
 for (j in 1:length(data.lm$weapsubtype1)){if (is.na(data.lm[j,k])) { removecols <- rbind(removecols, j) } }
 data.lm <- data.lm[-c(removecols),]
-data.lm.labels <- data.lm[,data.lm$weapsubtype1]
-data.lm$weapsubtype1 <- NULL
+#data.lm.labels <- data.lm[,data.lm$weapsubtype1]
+#data.lm$weapsubtype1 <- NULL
 
 num.train <- floor(nrow(data.lm)*0.5)
 train.ndx <- sample(1:nrow(data.lm), num.train, replace=F)
 data.lm.train <- data.lm[train.ndx, ]
-data.lm.train.labels <- data.lm.labels[train.ndx, ]
+#data.lm.train.labels <- data.lm.labels[train.ndx, ]
 data.lm.test <- data.lm[-train.ndx, ]
-data.lm.test.labels <- data.lm.labels[-train.ndx, ]
+#data.lm.test.labels <- data.lm.labels[-train.ndx, ]
 
-form <- as.formula(sprintf('weapsubtype1 ~ weaptype1 + guncertain1 + nvictim + property'))
+form <- as.formula(sprintf('weapsubtype1 ~ weaptype1 + nvictim + property + guncertain1'))
 model <- lm(form, data=data.lm.train)
-fit.train <- cor(predict(model, data.lm.train), data.lm.train$pred)
-##################################################
+summary(model)
+data.lm.train.labels <- predict(model, data.lm.train)
+fit.train <- cor(predict(model, data.lm.train), data.lm.train$weapsubtype1)
+fit.test <- cor(predict(model, data.lm.test), data.lm.test$weapsubtype1)
+
+plot.data <- merge(model.adults, views.by.age.gender, by=c("age", "gender"))
+ggplot(data=plot.data, aes(x=weaptype1, y=weapsubtype1)) +
+  geom_line(aes()) +
+  geom_point(aes(x=age, y=mean.daily.views, shape=gender)) +
+  xlab('Age') + ylab('Daily pageviews') +
+  theme(legend.title=element_blank(), legend.position=c(0.9,0.85))
+ggsave(filename='./lectures/lecture_4/figures/mean_daily_pageviews_by_age_and_gender.pdf', width=8, height=4)
+
+
+##################################################################################################################
 
 NAVector <- c()
 flag <- c()
 for (i in 1:length(names(data.small)))
 {
-  ratiobefore = 1
-  rationow = 1
+  ratiobefore = 0
+  rationow = 0
   countbefore = 0
   countnow = 0
   if (anyNA(data.small[,i])) {
     countbefore = sum(is.na(data.small[,i]))
     ratiobefore = countbefore/length(data.small[,i])
     data.small <- cleaningNAs(data.small, i)
-    #data.small <- cleaningNAs(data.small, i)
     countnow = sum(is.na(data.small[,i]))
     rationow = countnow/length(data.small[,i])
   }
@@ -207,15 +258,6 @@ for (i in 1:length(names(data.small)))
   NAVector <- rbind(NAVector,flag)
 }
 
-
-
-
-# remove gname, target1 and corp columns (bc of characters) 
-#data.small <- data.small[,!(names(data.small) %in% c("corp1","gname","target1"))]
-data.small <- data.small[,!(names(data.small) %in% c("gname"))]
-
-# rearrange columns so label is at far right ---- nkill, nwound
-data.small <- data.small[,c(1:23,26:29,24,25)]
 
 # # label - success
 # label = data.frame(success = data.small$success, stringsAsFactors = F)
@@ -225,23 +267,29 @@ set.seed(1010)
 ndx <- sample(nrow(data.small), floor(nrow(data.small) * 0.9))
 train <- data.small[ndx,]
 test <- data.small[-ndx,]
-trainX <- train[!names(test) %in% ("success")]
-trainY <- train[,as.numeric(names(test) %in% ("success"))]
-testX <- test[,!names(test) %in% ("success")]
-testY <- test[,names(test) %in% ("success")]
-
-
-
-
-
+trainX <- train[!names(test) %in% ("nvictim")]
+trainY <- train[,as.numeric(names(test) %in% ("nvictim"))]
+testX <- test[,!names(test) %in% ("nvictim")]
+testY <- test[,names(test) %in% ("nvictim")]
+rm(train)
+rm(test)
+rm(ndx)
 
 #@@@ Lasso Regression on train
-cvob1=cv.glmnet(trainX,trainY) # NS: cv = cross-validation; default alpha=1 
+lambda = 0.01
+#cvob1=glmnet(as.matrix(trainX),trainY, lambda=0.5) # NS: cv = cross-validation; default alpha=1 
+cvob1=cv.glmnet(as.matrix(trainX),trainY) # NS: cv = cross-validation; default alpha=1 
 plot(cvob1)
 coef(cvob1)
+cvob2=cv.glmnet(as.matrix(trainX),trainY,alpha=0)
+plot(cvob2)
+coef(cvob2)
+
+tfit=glmnet(as.matrix(trainX),trainY,lower=-.7,upper=.5)
+plot(tfit)
 
 # subset selection
-reg.model <- regsubsets(success ~ ., data = data.small, nvmax = 20)
+reg.model <- regsubsets(nvictim ~ ., data = data.small, nvmax = 20)
 reg.summary <- summary(reg.model)
 
 # point which maximizes adjusted rsquared, Cp and BIC - Best Subset Selection
