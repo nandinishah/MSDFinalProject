@@ -11,8 +11,8 @@ library(glmnetcr)
 ## INITIAL CLEANING OF GTD DATA ##
 ##################################################
 
-setwd('/Users/nandinishah/Documents/Columbia/Sem2/ModelingSocialData-APMA/FinalProject')
-#setwd('/Users/Gabi/dev/ModelingSocialData/MSDFinalProject')
+#setwd('/Users/nandinishah/Documents/Columbia/Sem2/ModelingSocialData-APMA/FinalProject')
+setwd('/Users/Gabi/dev/ModelingSocialData/MSDFinalProject')
 rm(list=ls())
 theme_set(theme_bw())
 
@@ -300,14 +300,31 @@ reg.summary <- summary(reg.model)
 max.adjR <- which.max(reg.summary$adjr2) 
 min.cp <- which.min(reg.summary$cp) 
 min.bic <- which.min(reg.summary$bic) 
+min.rss <- which.min(reg.summary$rss)
+
+
+# val.errors = rep(NA, 25)
+# # put into modelmatrix format
+# x.test <- model.matrix(testY~., data = testX)
+# # loop through coefs and get predictions
+# for (i in 1:25) {
+#   coefi = coef(reg.model, id = i)
+#   pred = x.test[, names(coefi)] %*% coefi
+#   val.errors[i] = mean((testY - pred)^2)
+# }
+
 
 
 # selecting best model based on least rss
 coef(reg.model, min.rss)
-RMSE.test.SS <- sqrt(sum((testY-(predict((reg.model,),as.matrix(testX))))^2)/length(testY))
+reg.model.coefs <- coef(reg.model, min.rss)
+x.test <- model.matrix(testY~., data = testX)
+reg.model.pred <- x.test[, names(coef(reg.model, min.rss))] %*% coef(reg.model, min.rss)
+RMSE.test.SS <- sqrt(sum((testY-(reg.model.pred))^2)/length(testY))
 RMSE.test <- sqrt(sum((testY-(predict(cvob1,as.matrix(testX))))^2)/length(testY))
 RMSE.train <- sqrt(sum((trainY-(predict(cvob1,as.matrix(trainX))))^2)/nrow(trainY))
   
+
 ## plot adjusted r2
 plot(reg.summary$adjr2, xlab = "Size of Subset", ylab = "Adjusted RSq", type ="l", col="blue", main="Best subset selection")
 # add point with max RSq
@@ -362,18 +379,24 @@ filename = "bic_subsets.png"
 dev.copy(device = png, filename = filename) # save png
 dev.off()
 
-# based on BIC 
-plot(reg.model, scale = "rss", main="RSS - subsets", col="red")
-grid()
-filename = "rss_subsets.png"
-dev.copy(device = png, filename = filename) # save png
-dev.off()
+# based on RSS 
+# plot(reg.model, scale = "rss", main="RSS - subsets", col="red")
+# grid()
+# filename = "rss_subsets.png"
+# dev.copy(device = png, filename = filename) # save png
+# dev.off()
 
 #@@@ GABY - lasso selects best model based on trainRSS. To compare apples-to-apples we should do subset selection based on RSS.
 #@@@ plot the RSS for different models 
-(code here)
-#@@@ select best model based on min.RSS
-min.rss <- which.min(reg.summary$rss) 
+## plot rss
+plot(reg.summary$rss, xlab = "Size of Subset", ylab = "RSS", type ="l", col="blue", main="Best subset selection")
+# add point with min RSS
+points(min.rss, reg.summary$rss[min.rss], col="red", cex=2, pch=20) 
+grid()
+# best model according to RSS
+print("Best subset based on RSS")
+#coef(reg.model, min.rss)
+
 #@@@ calculate test RSS, bic, auc, adj r-squared for this model
 (code here)
 
