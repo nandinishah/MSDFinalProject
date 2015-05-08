@@ -4,8 +4,6 @@ library(scales)
 library(dplyr)
 library(leaps) # best subset
 library(glmnet) # lasso
-library(stats) #AIC, BIC
-library(glmnetcr)
 
 ##################################################
 ## INITIAL CLEANING OF GTD DATA ##
@@ -80,8 +78,6 @@ for (i in 1:length(internat.cols) ){
      int.exclude <- rbind(int.exclude, internat.cols[i])
    }
 }
-#@@@ NS: Want to look at this in more detail.
-#@@@ NS: Deal with -9 in 'property' column
 
 # remove international columns with too many unknowns (-9) rows
 data.small <- data.small[, !(names(data.small) %in% int.exclude)]
@@ -251,8 +247,6 @@ rm(train)
 rm(test)
 
 #@@@ Lasso Regression on train set
-#@@@ NS: To interpret the lambda plots and add to slides
-#@@@ GABY - Feel free to pretty up the graph
 cvob1=cv.glmnet(as.matrix(trainX),as.matrix(trainY),alpha=1,family="gaussian")
 plot(cvob1)
 grid()
@@ -262,11 +256,12 @@ dev.off()
 coef(cvob1)
 best_lambda <- cvob1$lambda.min
 
-# cvob2=cv.glmnet(as.matrix(trainX),as.matrix(trainY),alpha=0)
-# plot(cvob2)
-# coef(cvob2)
+# Ridge regression
+cvob2=cv.glmnet(as.matrix(trainX),as.matrix(trainY),alpha=0)
+plot(cvob2)
+coef(cvob2)
 
-#@@@ GABY - Feel free to pretty up the graph
+# glmnet without cv
 cvob3=glmnet(as.matrix(trainX),as.matrix(trainY))
 plot(cvob3,label=TRUE)
 grid()
@@ -276,7 +271,6 @@ dev.off()
 coef(cvob3)
 
 #@@@ Lasso Regression on test set
-#@@@ NS: Try to plot CI on this
 #testPred <- predict(cvob1,as.matrix(testX))
 #trainPred <- predict(cvob1,as.matrix(trainX))
 RMSE.test <- sqrt(sum((testY-(predict(cvob1,as.matrix(testX))))^2)/length(testY))
@@ -284,11 +278,23 @@ RMSE.train <- sqrt(sum((trainY-(predict(cvob1,as.matrix(trainX))))^2)/nrow(train
 RMSE.test
 RMSE.train
 
+############ CI: Not possible because underlying distribution is not symmetric normal ###############
+
+qplot(x=trainY$ncasualty, geom="histogram", binwidth=0.01) +
+  geom_vline(xintercept=mean(trainY$ncasualty), linetype=2, color="red")
+n=nrow(testX)
+LCL <- testY - 1.96*sqrt(RMSE.test/n)
+UCL <- testY + 1.96*sqrt(RMSE.test/n)
+mean(mean(trainY$ncasualty) >= LCL & mean(trainY$ncasualty) <= UCL)
+
+
+
 
 ######################## Logistic regression on "success" column ##########################
 #@@@ NS: To try and adjust weights to adjust for reporting bias
 model <- glm(success ~ ., data=data.small[ndx, ], family="binomial") 
 table(predict(model, data.small[-ndx, ]) > 0, data.small[-ndx, "success"])
+
 
 
 
@@ -324,16 +330,11 @@ RMSE.test.SS <- sqrt(sum((testY-(reg.model.pred))^2)/length(testY))
 RMSE.test <- sqrt(sum((testY-(predict(cvob1,as.matrix(testX))))^2)/length(testY))
 RMSE.train <- sqrt(sum((trainY-(predict(cvob1,as.matrix(trainX))))^2)/nrow(trainY))
   
-
 ## plot adjusted r2
 plot(reg.summary$adjr2, xlab = "Size of Subset", ylab = "Adjusted RSq", type ="l", col="blue", main="Best subset selection")
 # add point with max RSq
 points(max.adjR, reg.summary$adjr2[max.adjR], col="red", cex=2, pch=20) 
 grid()
-# best model according to Adjusted R squared
-print("Best subset based on Adjusted R^2")
-#coef(reg.model, max.adjR)
-
 
 ## plot Cp
 plot(reg.summary$cp, xlab = "Size of Subset", ylab = "Cp", type ="l", col="blue", main="Best subset selection")
@@ -341,21 +342,11 @@ plot(reg.summary$cp, xlab = "Size of Subset", ylab = "Cp", type ="l", col="blue"
 points(max.adjR, reg.summary$cp[min.cp], col="red", cex=2, pch=20) 
 grid()
 
-# best model according to CP
-print("Best subset based on Cp")
-#coef(reg.model, min.cp)
-
-
 ## plot BIC
 plot(reg.summary$bic, xlab = "Size of Subset", ylab = "BIC", type ="l", col="blue", main="Best subset selection")
 # add point with min BIC
 points(min.bic, reg.summary$bic[min.bic], col="red", cex=2, pch=20) 
 grid()
-
-# best model according to BIC
-print("Best subset based on BIC")
-#coef(reg.model, min.bic)
-
 
 # plots - which subset to chose?
 # based on adjusted R2
@@ -379,14 +370,6 @@ filename = "bic_subsets.png"
 dev.copy(device = png, filename = filename) # save png
 dev.off()
 
-# based on RSS 
-# plot(reg.model, scale = "rss", main="RSS - subsets", col="red")
-# grid()
-# filename = "rss_subsets.png"
-# dev.copy(device = png, filename = filename) # save png
-# dev.off()
-
-#@@@ GABY - lasso selects best model based on trainRSS. To compare apples-to-apples we should do subset selection based on RSS.
 #@@@ plot the RSS for different models 
 ## plot rss
 plot(reg.summary$rss, xlab = "Size of Subset", ylab = "RSS", type ="l", col="blue", main="Best subset selection")
@@ -397,8 +380,6 @@ grid()
 print("Best subset based on RSS")
 #coef(reg.model, min.rss)
 
-#@@@ calculate test RSS, bic, auc, adj r-squared for this model
-(code here)
 
 
 #@@@ VISAL/GABY - Really tried doing this for sometime but it's just so much easier in excel :P If you can figure in R pls do.
