@@ -256,7 +256,11 @@ rm(test)
 cvob1=cv.glmnet(as.matrix(trainX),as.matrix(trainY),alpha=1,family="gaussian")
 plot(cvob1)
 grid()
+filename = "lassoLogLambda.png"
+dev.copy(device = png, filename = filename) # save png
+dev.off()
 coef(cvob1)
+best_lambda <- cvob1$lambda.min
 
 # cvob2=cv.glmnet(as.matrix(trainX),as.matrix(trainY),alpha=0)
 # plot(cvob2)
@@ -266,6 +270,9 @@ coef(cvob1)
 cvob3=glmnet(as.matrix(trainX),as.matrix(trainY))
 plot(cvob3,label=TRUE)
 grid()
+filename = "lassoL1Norm.png"
+dev.copy(device = png, filename = filename) # save png
+dev.off()
 coef(cvob3)
 
 #@@@ Lasso Regression on test set
@@ -278,7 +285,7 @@ RMSE.test
 RMSE.train
 
 
-#@@@ Logistic on "success" column
+######################## Logistic regression on "success" column ##########################
 #@@@ NS: To try and adjust weights to adjust for reporting bias
 model <- glm(success ~ ., data=data.small[ndx, ], family="binomial") 
 table(predict(model, data.small[-ndx, ]) > 0, data.small[-ndx, "success"])
