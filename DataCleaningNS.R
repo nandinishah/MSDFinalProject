@@ -4,23 +4,20 @@ library(scales)
 library(dplyr)
 library(leaps) # best subset
 library(glmnet) # lasso
+library(ROCR)
 
 ##################################################
-## INITIAL CLEANING OF GTD DATA ##
+        ## INITIAL CLEANING OF GTD DATA ##
 ##################################################
 
-#setwd('/Users/nandinishah/Documents/Columbia/Sem2/ModelingSocialData-APMA/FinalProject')
-setwd('/Users/Gabi/dev/ModelingSocialData/MSDFinalProject')
+#setwd()
 rm(list=ls())
 theme_set(theme_bw())
-
 
 # read as csv: keep headers and include empty strings as NA
 #data <- read.csv('2ns_gtd_06_to_13.csv',header=T, stringsAsFactor = F, na.strings ="")
 datafull <- read.csv('gtd_06_to_13.csv', header=T, stringsAsFactor = F, na.strings ="")
 
-# n <- nrow(datafull)
-#data.cols <- names(datafull)
 
 ######### filter data for top 6 countries = 70% of full dataset (datafull) ###########
 data.top6 <- filter(datafull, country_txt=="Iraq" | country_txt=="Pakistan" | country_txt=="Afghanistan" | 
@@ -82,6 +79,7 @@ for (i in 1:length(internat.cols) ){
 # remove international columns with too many unknowns (-9) rows
 data.small <- data.small[, !(names(data.small) %in% int.exclude)]
 
+
 ######### vectorizing text columns ###########
 
 # vectorize gname column 
@@ -93,7 +91,6 @@ gname.index <- match(gname, unique.gname)
 # add to data.small
 data.small$gname.index <- gname.index
 # remove gname, target1 and corp columns (bc of characters) 
-#data.small <- data.small[,!(names(data.small) %in% c("corp1","gname","target1"))]
 data.small <- data.small[,!(names(data.small) %in% c("gname"))]
 rm(gname.index)
 rm(gname)
@@ -107,7 +104,44 @@ data.small$nkill <- NULL
 data.small$nwound <- NULL
 rm(ncasualty)
 
-#@@@ Working around NAs and Inf - since glmnet does not work with them
+
+#######################################################################
+## Working around NAs and Inf - since glmnet cannot model with them ##
+#######################################################################
+
+########## Linear Regression for weapsubtype1 ###########
+plot(lowess(x=data.small$weaptype1+data.small$guncertain1,y=data.small$weapsubtype1))
+
+fit <- data.frame()
+removecols <- c()
+data.lm <- data.small
+k = which(names(data.lm)%in%c("weapsubtype1"))
+for (j in 1:length(data.lm$weapsubtype1)){if (is.na(data.lm[j,k])) { removecols <- rbind(removecols, j) } }
+data.lm <- data.lm[-c(removecols),]
+data.lm.labels <- data.lm[,"weapsubtype1"]
+#data.lm$weapsubtype1 <- NULL
+
+num.train <- floor(nrow(data.lm)*0.5)
+train.ndx <- sample(1:nrow(data.lm), num.train, replace=F)
+data.lm.train <- data.lm[train.ndx, ]
+data.lm.train.labels <- data.lm.labels[train.ndx]
+data.lm.test <- data.lm[-train.ndx, ]
+data.lm.test.labels <- data.lm.labels[-train.ndx]
+
+form <- as.formula(sprintf('weapsubtype1 ~ suicide + weaptype1 + guncertain1 + property + attacktype1 + natlty1 + targtype1')) # + ncasualty + property ))
+model <- lm(form, data=data.lm.train)
+#summary(model)
+data.lm.train.labels <- predict(model, data.lm.train)
+
+RMSE.test <- sqrt(sum((data.lm.test.labels-(predict(model,data.lm.test)))^2)/length(data.lm.test))
+RMSE.train <- sqrt(sum((data.lm.train.labels-(predict(model,data.lm.train)))^2)/nrow(data.lm.train))
+RMSE.test
+RMSE.train
+# Note: since the test error is so large, the model is better off without these imputed rows
+
+
+######### Function to clean NAs ##############
+
 cleaningNAs <- function(dat, i){
   #"natlty" - assuming country of incidence based on source (GTD) documentation
   if (names(dat)[i] == "natlty1"){
@@ -138,8 +172,7 @@ cleaningNAs <- function(dat, i){
     dat <- dat[-c(removecols),]
     print('ncasualty Worked!')
   }
-  #"weapsubtype1" - deleting the rows since not a significant number
-  #@@@ NS: implement LR if can
+  #"weapsubtype1" - deleting the rows since not a significant number, Linear Regression did not give good results
   if (names(dat)[i] == "weapsubtype1"){
     removecols <- c()
     print("here5")
@@ -147,19 +180,7 @@ cleaningNAs <- function(dat, i){
     dat <- dat[-c(removecols),]
     print('weapsubtype1 Worked!')
   }
-#   #"nperps" and "nperpcap" columns 
-#   #@@@ NS: try to figure using LR.
-#   if (names(dat)[i] == "nperps"){
-#     removecols <- c()
-#     print("here7")
-#     for (j in 1:length(dat[,i])){if (is.na(dat[j,i])) {removecols <- rbind(removecols, j)}}
-#     dat <- dat[-c(removecols),]
-#     i = which(names(dat)%in%c("nperpcap"))
-#     for (j in 1:length(dat[,i])){if (is.na(dat[j,i])) {removecols <- rbind(removecols, j)}}
-#     dat <- dat[-c(removecols),]
-#     print('nperps Worked!')
-#   }
-  #"nperps" and "nperpcap" columns --- ignoring these cols for now since metrics prove these are not significant
+  #"nperps" and "nperpcap" columns --- ignoring these cols since metrics prove these are not significant
   if (names(dat)[i] == "nperps"){
     removecols <- c()
     print("here6")
@@ -171,45 +192,6 @@ cleaningNAs <- function(dat, i){
   }
   return(dat)
 }
-
-
-
-
-########## WIP: Linear Regression for weapsubtype1 ################################################################## 
-plot(lowess(x=data.small$weaptype1+data.small$property,y=data.small$weapsubtype1))
-
-fit <- data.frame()
-removecols <- c()
-data.lm <- data.small
-k = which(names(data.lm)%in%c("weapsubtype1"))
-for (j in 1:length(data.lm$weapsubtype1)){if (is.na(data.lm[j,k])) { removecols <- rbind(removecols, j) } }
-data.lm <- data.lm[-c(removecols),]
-#data.lm.labels <- data.lm[,data.lm$weapsubtype1]
-#data.lm$weapsubtype1 <- NULL
-
-num.train <- floor(nrow(data.lm)*0.5)
-train.ndx <- sample(1:nrow(data.lm), num.train, replace=F)
-data.lm.train <- data.lm[train.ndx, ]
-#data.lm.train.labels <- data.lm.labels[train.ndx, ]
-data.lm.test <- data.lm[-train.ndx, ]
-#data.lm.test.labels <- data.lm.labels[-train.ndx, ]
-
-form <- as.formula(sprintf('weapsubtype1 ~ weaptype1 + ncasualty + property + guncertain1'))
-model <- lm(form, data=data.lm.train)
-summary(model)
-data.lm.train.labels <- predict(model, data.lm.train)
-fit.train <- cor(predict(model, data.lm.train), data.lm.train$weapsubtype1)
-fit.test <- cor(predict(model, data.lm.test), data.lm.test$weapsubtype1)
-
-plot.data <- merge(model.adults, views.by.age.gender, by=c("age", "gender"))
-ggplot(data=plot.data, aes(x=weaptype1, y=weapsubtype1)) +
-  geom_line(aes()) +
-  geom_point(aes(x=age, y=mean.daily.views, shape=gender)) +
-  xlab('Age') + ylab('Daily pageviews') +
-  theme(legend.title=element_blank(), legend.position=c(0.9,0.85))
-ggsave(filename='./lectures/lecture_4/figures/mean_daily_pageviews_by_age_and_gender.pdf', width=8, height=4)
-##################################################################################################################
-
 
 
 #@@@ Removing the NAs by calling the function defined above for each column in the data set
@@ -234,7 +216,13 @@ for (i in 1:length(names(data.small)))
 colnames(NAVector) <- c("feature","anyNA","ratiobefore","countbefore","rationow","countnow")
   
 
-#@@@ splitting into train/test sets
+
+
+##################################################
+                  ## MODELING ##
+##################################################
+
+######### splitting into train/test sets #########
 set.seed(1010)
 ndx <- sample(nrow(data.small), floor(nrow(data.small) * 0.9))
 train <- data.small[ndx,]
@@ -246,20 +234,18 @@ testY <- test[,names(test) %in% ("ncasualty")]
 rm(train)
 rm(test)
 
-#@@@ Lasso Regression on train set
+
+######## Lasso Regression ########
 cvob1=cv.glmnet(as.matrix(trainX),as.matrix(trainY),alpha=1,family="gaussian")
 plot(cvob1)
 grid()
 filename = "lassoLogLambda.png"
 dev.copy(device = png, filename = filename) # save png
 dev.off()
-coef(cvob1)
-best_lambda <- cvob1$lambda.min
 
-# Ridge regression
-cvob2=cv.glmnet(as.matrix(trainX),as.matrix(trainY),alpha=0)
-plot(cvob2)
-coef(cvob2)
+# best lambda and corresponding coefficients
+best_lambda <- cvob1$lambda.min
+coef(cvob1)
 
 # glmnet without cv
 cvob3=glmnet(as.matrix(trainX),as.matrix(trainY))
@@ -268,37 +254,85 @@ grid()
 filename = "lassoL1Norm.png"
 dev.copy(device = png, filename = filename) # save png
 dev.off()
-coef(cvob3)
+
+
+########## Ridge regression ###########
+cvob2=cv.glmnet(as.matrix(trainX),as.matrix(trainY),alpha=0)
+plot(cvob2)
+grid()
+filename = "ridgeLogLambda.png"
+dev.copy(device = png, filename = filename) # save png
+dev.off()
+
+cvob2b=glmnet(as.matrix(trainX),as.matrix(trainY),alpha=0)
+plot(cvob2b)
+grid()
+filename = "ridgeL2Norm.png"
+dev.copy(device = png, filename = filename) # save png
+dev.off()
+
+# best lambda and corresponding coefficients
+best_lambda <- cvob2$lambda.min
+coef(cvob2)
+
+
+########## Linear regression ###########
+cvob05=glmnet(as.matrix(trainX),as.matrix(trainY),alpha=0, lambda=0)
+coef(cvob05)
+
 
 #@@@ Lasso Regression on test set
-#testPred <- predict(cvob1,as.matrix(testX))
-#trainPred <- predict(cvob1,as.matrix(trainX))
-RMSE.test <- sqrt(sum((testY-(predict(cvob1,as.matrix(testX))))^2)/length(testY))
-RMSE.train <- sqrt(sum((trainY-(predict(cvob1,as.matrix(trainX))))^2)/nrow(trainY))
-RMSE.test
-RMSE.train
+RMSE.test.Lasso <- sqrt(sum((testY-(predict(cvob1,as.matrix(testX))))^2)/length(testY))
+RMSE.train.Lasso <- sqrt(sum((trainY-(predict(cvob1,as.matrix(trainX))))^2)/nrow(trainY))
+RMSE.test.Lasso
+RMSE.train.Lasso
 
-############ CI: Not possible because underlying distribution is not symmetric normal ###############
+#@@@ Ridge Regression on test set
+RMSE.test.RR <- sqrt(sum((testY-(predict(cvob2,as.matrix(testX))))^2)/length(testY))
+RMSE.train.RR <- sqrt(sum((trainY-(predict(cvob2,as.matrix(trainX))))^2)/nrow(trainY))
+RMSE.test.RR
+RMSE.train.RR
+
+#@@@ Linear Regression on test set
+RMSE.test.LR <- sqrt(sum((testY-(predict(cvob05,as.matrix(testX))))^2)/length(testY))
+RMSE.train.LR <- sqrt(sum((trainY-(predict(cvob05,as.matrix(trainX))))^2)/nrow(trainY))
+RMSE.test.LR
+RMSE.train.LR
+
+
+############ Plotting confidence intervals ##############
+## Not possible because underlying distribution is not a symmetric normal ##
 
 qplot(x=trainY$ncasualty, geom="histogram", binwidth=0.01) +
   geom_vline(xintercept=mean(trainY$ncasualty), linetype=2, color="red")
 n=nrow(testX)
+grid()
+filename = "SamplingDistribution.png"
+dev.copy(device = png, filename = filename) # save png
+dev.off()
 LCL <- testY - 1.96*sqrt(RMSE.test/n)
 UCL <- testY + 1.96*sqrt(RMSE.test/n)
 mean(mean(trainY$ncasualty) >= LCL & mean(trainY$ncasualty) <= UCL)
 
 
+####### Logistic regression on "success" column ##########
 
-
-######################## Logistic regression on "success" column ##########################
-#@@@ NS: To try and adjust weights to adjust for reporting bias
 model <- glm(success ~ ., data=data.small[ndx, ], family="binomial") 
 table(predict(model, data.small[-ndx, ]) > 0, data.small[-ndx, "success"])
 
+pred <- prediction(predict(model, data.small[-ndx, ]), data.small[-ndx, "success"])
+perf_lr <- performance(pred, measure='tpr', x.measure='fpr')
+plot(perf_lr)
+grid()
+filename = "ROCcurve.png"
+dev.copy(device = png, filename = filename) # save png
+dev.off()
+aucValue <- performance(pred, 'auc')
+aucValue@y.values
 
 
+########## Subset selection ##########
 
-######################## subset selection ##################################
 reg.model <- regsubsets(ncasualty ~ ., data = data.small, nvmax = 26)
 reg.summary <- summary(reg.model)
 
@@ -308,27 +342,12 @@ min.cp <- which.min(reg.summary$cp)
 min.bic <- which.min(reg.summary$bic) 
 min.rss <- which.min(reg.summary$rss)
 
-
-# val.errors = rep(NA, 25)
-# # put into modelmatrix format
-# x.test <- model.matrix(testY~., data = testX)
-# # loop through coefs and get predictions
-# for (i in 1:25) {
-#   coefi = coef(reg.model, id = i)
-#   pred = x.test[, names(coefi)] %*% coefi
-#   val.errors[i] = mean((testY - pred)^2)
-# }
-
-
-
 # selecting best model based on least rss
 coef(reg.model, min.rss)
 reg.model.coefs <- coef(reg.model, min.rss)
 x.test <- model.matrix(testY~., data = testX)
 reg.model.pred <- x.test[, names(coef(reg.model, min.rss))] %*% coef(reg.model, min.rss)
 RMSE.test.SS <- sqrt(sum((testY-(reg.model.pred))^2)/length(testY))
-RMSE.test <- sqrt(sum((testY-(predict(cvob1,as.matrix(testX))))^2)/length(testY))
-RMSE.train <- sqrt(sum((trainY-(predict(cvob1,as.matrix(trainX))))^2)/nrow(trainY))
   
 ## plot adjusted r2
 plot(reg.summary$adjr2, xlab = "Size of Subset", ylab = "Adjusted RSq", type ="l", col="blue", main="Best subset selection")
@@ -378,7 +397,6 @@ points(min.rss, reg.summary$rss[min.rss], col="red", cex=2, pch=20)
 grid()
 # best model according to RSS
 print("Best subset based on RSS")
-#coef(reg.model, min.rss)
 
 
 
@@ -394,7 +412,11 @@ rank(SScoef)
 rank(Lascoef[2,])
 
 
-######################## Plotting ##################################
+
+
+##################################################
+                  ## PLOTTING ##
+##################################################
 
 # look up countries, attacks
 countries.index <- data.frame(country = data.top6$country_txt, country.id = data.top6$country, stringsAsFactors = F)
