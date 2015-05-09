@@ -428,10 +428,11 @@ attacks.plot <- unique(attacks.index[order(attacks.index$attack.id),])
 #1) plot of casualties by country
 plot.countries <- ggplot(data.small, aes(x=country, y = ncasualty)) +
   geom_point(aes(color = country, group = country), size = 2.2) +
-  scale_x_discrete(breaks=c(8,86,95,140,160,200),
+  scale_x_continuous(breaks=c(8,86,95,140,160,200),
                    labels=c("Afghanistan", "India", "Iraq", "Pakistan", "Philippines","Thailand"),
                    name = "") +
-  scale_y_discrete(name = "Casualties") +
+  # change axis to show integers
+  scale_y_continuous(name = "Casualties", labels = function (x) floor(x)) +
   theme(axis.ticks = element_blank()) +
   theme(axis.title.y = element_text(angle = 0)) +
   theme(panel.grid = element_line(size = 0.4, linetype = "dotted")) +
@@ -448,7 +449,7 @@ plot.attacks <- ggplot(data.small, aes(x=attacktype1, y = ncasualty)) +
                    labels= c("Assassination","Armed\nAssault","Bombing/\nExpolsion","Hijacking",
                              "Hostage \ntaking","Kidnapping","Infra-\nstructure \nAttack",
                              "Unarmed \nAssault","Unknown"), name ="") +
-  scale_y_discrete(name = "Casualties") +
+  scale_y_continuous(name = "Casualties", labels = function (x) floor(x)) +
   scale_color_discrete(guide="none") +
   # hide tickmarks and rotate labels
   theme(axis.ticks = element_blank()) + 
@@ -463,8 +464,8 @@ ggsave(filename = "attacks_casualties.png", plot = plot.attacks, path =".")
 #3) plot of casualties by multiple incidents
 plot.multiple <- ggplot(data.small, aes(x=multiple, y = ncasualty)) +
   geom_point(aes(color = factor(multiple), group = multiple), size =2.3) +
-  scale_x_discrete(name = "Multiple Incidents") +
-  scale_y_discrete(name = "Casualties") +
+  scale_x_continuous(name = "Multiple Incidents") +
+  scale_y_continuous(name = "Casualties", labels = function (x) floor(x)) +
   theme(axis.ticks = element_blank()) +
   theme(axis.title.y = element_text(angle = 0)) +
   theme(panel.grid = element_line(size = 0.4, linetype = "dotted")) +
@@ -478,7 +479,7 @@ ggsave(filename = "casualties_multiple.png", plot = plot.multiple, path =".")
 plot.day <- ggplot(data.small, aes(x=iday, y = ncasualty)) +
   geom_point(aes(color = factor(iday), group = iday), size =2) +
   scale_x_discrete(name = "Day of Month") +
-  scale_y_discrete(name = "Casualties") + 
+  scale_y_continuous(name = "Casualties", labels = function (x) floor(x) ) + 
   theme(axis.ticks = element_blank()) +
   theme(axis.title.y = element_text(angle = 0)) +
   theme(panel.grid = element_line(size = 0.4, linetype = "dotted")) +
